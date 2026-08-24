@@ -1,0 +1,11 @@
+{
+  "name": "PPG Camera Test",
+  "short_name": "PPG Test",
+  "start_url": "./index.html",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait-primary",
+  "background_color": "#060b18",
+  "theme_color": "#060b18",
+  "icons": []
+}

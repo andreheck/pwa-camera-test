@@ -1,0 +1,743 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>PilhA+ — Protótipo de Captura PPG</title>
+<link rel="manifest" href="manifest.json" />
+<meta name="theme-color" content="#060b18" />
+<meta name="apple-mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+<meta name="apple-mobile-web-app-title" content="PPG Test" />
+<link rel="apple-touch-icon" href="icon.png" />
+<style>
+  :root {
+    --ink: #060b18;
+    --blue: #2f7dff;
+    --blue-strong: #6aa2ff;
+    --blue-soft: rgba(47, 125, 255, 0.14);
+    --yellow: #ffce00;
+    --yellow-strong: #ffe066;
+    --yellow-soft: rgba(255, 206, 0, 0.12);
+    --muted: #9fb0ca;
+    --status-good: #34d399;
+    --status-good-soft: rgba(52, 211, 153, 0.12);
+    --status-watch: #ffce00;
+    --status-watch-soft: rgba(255, 206, 0, 0.12);
+    --status-alert: #fb7185;
+    --status-alert-soft: rgba(251, 113, 133, 0.12);
+    --surface-1: rgba(18, 32, 58, 0.8);
+    --surface-3: rgba(3, 9, 22, 0.4);
+    --border: rgba(255, 255, 255, 0.1);
+    --border-strong: rgba(255, 255, 255, 0.18);
+    --radius-sm: 0.65rem;
+    --radius-md: 0.9rem;
+    --radius-lg: 1.25rem;
+    --radius-pill: 999px;
+    --shadow-lg: 0 30px 80px rgba(0, 0, 0, 0.24);
+    --shadow-glow-yellow: 0 8px 22px rgba(255, 206, 0, 0.26);
+    --ease: cubic-bezier(0.22, 1, 0.36, 1);
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; min-height: 100vh; color: #f8fafc; font-family: Inter, ui-sans-serif, system-ui, sans-serif;
+    background:
+      radial-gradient(circle at 12% 5%, rgba(47, 125, 255, 0.24), transparent 32rem),
+      radial-gradient(circle at 88% 10%, rgba(255, 206, 0, 0.12), transparent 26rem),
+      linear-gradient(145deg, #060b18 0%, #0a1830 55%, #060c1c 100%);
+  }
+  .shell { max-width: 640px; margin: 0 auto; padding: clamp(1.25rem, 4vw, 2.5rem); }
+  .brand { display: flex; align-items: center; gap: 0.7rem; font-weight: 850; }
+  .brand__mark {
+    position: relative; display: grid; place-items: center; width: 2.3rem; height: 2.3rem;
+    border-radius: var(--radius-sm); color: var(--ink);
+    background: linear-gradient(135deg, var(--yellow), var(--blue)); font-weight: 900;
+  }
+  .brand__mark::after {
+    content: ''; position: absolute; inset: -5px; border-radius: inherit;
+    border: 1.5px solid rgba(255, 206, 0, 0.55); opacity: 0.75;
+    animation: charge-pulse 2.6s var(--ease) infinite;
+  }
+  @keyframes charge-pulse { 0% { transform: scale(0.92); opacity: 0.6; } 60%,100% { transform: scale(1.14); opacity: 0; } }
+  .proto-tag { padding: 0.25rem 0.55rem; border-radius: var(--radius-pill); color: var(--muted); background: rgba(255,255,255,0.06); font-size: 0.65rem; font-weight: 800; text-transform: uppercase; }
+  .panel { margin-top: 1.5rem; padding: clamp(1.1rem, 3vw, 1.8rem); border: 1px solid var(--border); border-radius: 1.4rem; background: var(--surface-1); box-shadow: var(--shadow-lg); backdrop-filter: blur(18px); }
+  .eyebrow { margin: 0 0 0.6rem; color: var(--yellow); font-size: 0.68rem; font-weight: 850; letter-spacing: 0.14em; }
+  h1 { margin: 0; font-size: clamp(1.6rem, 5vw, 2.1rem); line-height: 1.05; letter-spacing: -0.03em; }
+  .hero__copy { color: var(--muted); font-size: 0.92rem; line-height: 1.65; margin: 0.9rem 0 0; }
+  code { padding: 0.1rem 0.35rem; border-radius: 0.3rem; background: rgba(255,255,255,0.08); font-size: 0.85em; }
+  .checklist { display: grid; gap: 0.55rem; margin: 1.2rem 0 1.4rem; padding: 0; list-style: none; color: #dbe5f4; font-size: 0.85rem; }
+  .checklist li { display: flex; gap: 0.6rem; align-items: flex-start; }
+  .checklist li::before { content: '●'; color: var(--yellow); flex: 0 0 auto; line-height: 1.5; }
+  .button {
+    display: inline-flex; min-height: 3rem; align-items: center; justify-content: center; gap: 0.4rem;
+    padding: 0.75rem 1.25rem; border: 1px solid transparent; border-radius: var(--radius-pill);
+    font-weight: 800; font-size: 0.9rem; letter-spacing: -0.01em; cursor: pointer;
+    transition: transform 140ms var(--ease), box-shadow 140ms var(--ease), background 140ms var(--ease), opacity 140ms var(--ease);
+  }
+  .button--primary { color: var(--ink); background: linear-gradient(135deg, var(--yellow-strong), var(--yellow)); box-shadow: var(--shadow-glow-yellow); }
+  .button--primary:hover { transform: translateY(-2px); box-shadow: 0 12px 28px rgba(255, 206, 0, 0.34); }
+  .button--primary:active { transform: translateY(0); }
+  .button--ghost { border-color: var(--border); background: rgba(255,255,255,0.045); color: #f8fafc; }
+  .button--ghost:hover { border-color: var(--border-strong); background: rgba(255,255,255,0.08); }
+  .button:disabled { cursor: wait; opacity: 0.55; transform: none; box-shadow: none; }
+  .form-error { margin-top: 1rem; padding: 0.75rem 0.85rem; border: 1px solid rgba(251,113,133,0.28); border-radius: var(--radius-sm); color: #fecaca; background: var(--status-alert-soft); font-size: 0.82rem; line-height: 1.5; }
+  .capture-grid { display: grid; gap: 1rem; }
+  .video-wrap { position: relative; overflow: hidden; border-radius: var(--radius-lg); border: 1px solid var(--border); background: #000; aspect-ratio: 4 / 3; }
+  video { width: 100%; height: 100%; object-fit: cover; transform: scaleX(-1); }
+  .roi-guide {
+    position: absolute; top: 20%; left: 32.5%; width: 35%; height: 35%;
+    border: 2px dashed rgba(255, 206, 0, 0.85); border-radius: 50%;
+    box-shadow: 0 0 0 999px rgba(6, 11, 24, 0.35);
+    pointer-events: none;
+  }
+  .capture-timer {
+    position: absolute; top: 0.7rem; right: 0.7rem; padding: 0.35rem 0.6rem; border-radius: var(--radius-pill);
+    color: #fff; background: rgba(6, 11, 24, 0.6); font-weight: 850; font-size: 0.85rem; font-variant-numeric: tabular-nums;
+  }
+  .signal-wrap { padding: 0.9rem; border: 1px solid var(--border); border-radius: var(--radius-md); background: var(--surface-3); }
+  canvas#waveform { width: 100%; height: 110px; display: block; }
+  .live-readout { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 0.6rem; margin-top: 0.8rem; }
+  .live-readout > div { padding: 0.6rem; border-radius: var(--radius-sm); background: rgba(255,255,255,0.03); text-align: center; }
+  .live-readout span { display: block; color: var(--muted); font-size: 0.6rem; font-weight: 800; text-transform: uppercase; }
+  .live-readout strong { display: block; margin-top: 0.3rem; font-size: 1.2rem; font-variant-numeric: tabular-nums; }
+  .status-tag.good { color: var(--status-good); }
+  .status-tag.watch { color: var(--status-watch); }
+  .status-tag.alert { color: var(--status-alert); }
+  #btnStop { width: 100%; margin-top: 1rem; }
+  .result-badge { display: inline-flex; align-items: center; gap: 0.45rem; padding: 0.45rem 0.75rem; border-radius: var(--radius-pill); font-weight: 850; font-size: 0.78rem; margin-bottom: 1rem; }
+  .result-badge.good { color: var(--status-good); background: var(--status-good-soft); }
+  .result-badge.watch { color: var(--status-watch); background: var(--status-watch-soft); }
+  .result-badge.alert { color: var(--status-alert); background: var(--status-alert-soft); }
+  .result-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 0.7rem; margin: 1rem 0; }
+  .result-grid > div { padding: 0.9rem; border: 1px solid var(--border); border-radius: var(--radius-md); background: var(--surface-3); }
+  .result-grid span { display: block; color: var(--muted); font-size: 0.65rem; font-weight: 800; text-transform: uppercase; }
+  .result-grid strong { display: block; margin-top: 0.4rem; font-size: 1.6rem; font-variant-numeric: tabular-nums; }
+  .proto-disclaimer { margin: 1.4rem 0 0; color: #64748b; font-size: 0.7rem; line-height: 1.6; text-align: center; }
+  .status-log { margin-top: 0.9rem; padding: 0.65rem 0.8rem; border: 1px solid var(--border); border-radius: var(--radius-sm); background: rgba(0,0,0,0.25); color: #7d8db0; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 0.68rem; line-height: 1.6; max-height: 110px; overflow-y: auto; }
+  .status-log:empty { display: none; }
+  .status-log .ok { color: #86efac; }
+  .status-log .err { color: #fda4af; }
+  .debug-line { margin-top: 0.6rem; color: #5b6b8a; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 0.66rem; text-align: center; }
+  .result-actions { display: grid; gap: 0.6rem; margin-top: 0.4rem; }
+  [hidden] { display: none !important; }
+</style>
+</head>
+<body>
+<div class="shell">
+  <div class="brand">
+    <span class="brand__mark">P+</span>
+    PilhA+
+    <span class="proto-tag">teste isolado de câmera em PWA</span>
+  </div>
+
+  <section class="panel" style="border-color: rgba(255,206,0,0.35); background: rgba(255,206,0,0.06);">
+    <p class="eyebrow" style="color:#ffce00;">TESTE ESPECÍFICO — LEIA ANTES</p>
+    <h1 style="font-size:1.4rem;">Protocolo de teste: câmera em modo standalone (iOS)</h1>
+    <p class="hero__copy" style="font-size:0.85rem;">
+      Esta página existe só para isolar UMA pergunta: a câmera funciona quando o app
+      roda instalado na tela inicial (modo "standalone"), fora do navegador?
+    </p>
+    <ol style="color:#dbe5f4; font-size:0.85rem; line-height:1.8; padding-left:1.2rem;">
+      <li><strong>Teste de controle primeiro:</strong> com essa página aberta aqui no Safari
+        (numa aba normal), toque em "Permitir câmera e iniciar" abaixo e confirme que funciona.
+        Encerre a captura a qualquer momento.</li>
+      <li>Toque no botão de compartilhar do Safari (ícone de quadrado com seta para cima)
+        e escolha <strong>"Adicionar à Tela de Início"</strong>.</li>
+      <li>Feche o Safari completamente.</li>
+      <li>Abra o app pelo <strong>ícone na tela de início</strong> (não pelo Safari) —
+        isso é o que ativa o modo standalone de verdade.</li>
+      <li>Repita o teste: toque em "Permitir câmera e iniciar". Observe: apareceu o pedido
+        de permissão? A imagem da câmera apareceu? Deu erro?</li>
+      <li>Me conta o resultado dos dois testes (aba normal vs. tela de início).</li>
+    </ol>
+    <p style="color:#7d8db0; font-size:0.72rem; margin-top:0.8rem;">
+      Essa página não salva nem envia nada — só testa a permissão de câmera em si.
+      Sem relação com as capturas biométricas reais, que continuam no repositório privado.
+    </p>
+  </section>
+
+  <section id="stepIntro" class="panel">
+    <p class="eyebrow">CAPTURA PPG · TESTE TÉCNICO</p>
+    <h1>Vamos testar a captura real de sinal</h1>
+    <p class="hero__copy">
+      Isto é um protótipo funcional de extração de sinal por câmera (rPPG por vídeo).
+      Ele lê de verdade a variação de cor da sua pele a cada quadro — não é simulado —
+      mas ainda não é o motor calibrado usado por <code>ppgPolicy.ts</code> /
+      <code>robustBaseline.ts</code>. Serve para validar a captação em si antes de conectar
+      ao restante do pipeline.
+    </p>
+    <ul class="checklist">
+      <li>Ambiente bem iluminado e uniforme na frente do rosto — evite luz vindo só de um lado ou contraluz (janela atrás de você, por exemplo)</li>
+      <li>Enquadre o rosto dentro do guia oval e fique o mais parado possível — inclusive sem falar durante a captura</li>
+      <li>Olhe fixo para a câmera, sem desviar o olhar</li>
+      <li>Fundo neutro e sem movimento atrás de você</li>
+      <li>Sem adereços que cubram parte do rosto (óculos escuros, boné baixo, máscara, etc.)</li>
+      <li>A captura dura 60 segundos, como no protocolo descrito na política científica</li>
+      <li>A câmera é usada só localmente no seu navegador — nada é enviado a servidor algum</li>
+    </ul>
+    <p class="hero__copy" style="font-size:0.78rem;">
+      <strong>Por quê essas orientações:</strong> em testes reais, capturas com sinal de amplitude
+      fraca (pouca variação de cor detectável) tiveram erro bem maior contra referência de pulso
+      manual do que capturas com sinal forte — mesmo sem mudanças visíveis de movimento. Boa
+      iluminação uniforme parece ser o fator que mais ajuda a fortalecer esse sinal.
+    </p>
+    <button id="btnStart" class="button button--primary">Permitir câmera e iniciar (60s)</button>
+    <p id="errorMsg" class="form-error" hidden></p>
+    <div id="statusLog" class="status-log"></div>
+  </section>
+
+  <section id="stepCapture" class="panel" hidden>
+    <div class="capture-grid">
+      <div class="video-wrap">
+        <video id="video" autoplay playsinline muted></video>
+        <div class="roi-guide"></div>
+        <div class="capture-timer" id="timer">60s</div>
+      </div>
+      <div class="signal-wrap">
+        <canvas id="waveform" width="480" height="110"></canvas>
+        <div class="live-readout">
+          <div><span>BPM estimado</span><strong id="bpmLive">--</strong></div>
+          <div><span>Amostras</span><strong id="sampleCount">0</strong></div>
+          <div><span>Qualidade</span><strong id="qualityLive" class="status-tag">aguardando</strong></div>
+        </div>
+        <div id="debugLine" class="debug-line"></div>
+      </div>
+    </div>
+    <button id="btnStop" class="button button--ghost">Encerrar captura agora</button>
+  </section>
+
+  <section id="stepResult" class="panel" hidden>
+    <p class="eyebrow">RESULTADO DA CAPTURA</p>
+    <div id="resultBadge" class="result-badge good">Sinal com boa qualidade</div>
+    <h1 id="resultTitle" style="font-size:1.6rem;">Captura concluída</h1>
+    <p class="hero__copy" id="resultCopy"></p>
+    <div class="result-grid">
+      <div><span>BPM médio</span><strong id="bpmFinal">--</strong></div>
+      <div><span>Batimentos detectados</span><strong id="peaksFinal">--</strong></div>
+      <div><span>Duração</span><strong id="durationFinal">--</strong></div>
+      <div><span>Confiança do sinal</span><strong id="confidenceFinal">--</strong></div>
+      <div style="grid-column: 1 / -1;"><span>Amplitude do sinal bruto</span><strong id="amplitudeFinal">--</strong></div>
+    </div>
+    <div class="result-actions">
+      <button id="btnRestart" class="button button--primary">Testar novamente</button>
+      <button id="btnExport" class="button button--ghost">Baixar dados da captura (.json)</button>
+    </div>
+  </section>
+
+  <p class="proto-disclaimer">
+    Protótipo experimental de engenharia — não é dispositivo médico e não substitui avaliação clínica.
+    Os valores de BPM e confiança aqui são heurísticas de demonstração, não calibradas contra ECG/oxímetro
+    de referência (isso é trabalho futuro, listado no backlog do projeto).
+  </p>
+</div>
+
+<canvas id="hiddenCanvas" hidden></canvas>
+
+<script>
+(function () {
+  const stepIntro = document.getElementById('stepIntro');
+  const stepCapture = document.getElementById('stepCapture');
+  const stepResult = document.getElementById('stepResult');
+  const btnStart = document.getElementById('btnStart');
+  const btnStop = document.getElementById('btnStop');
+  const btnRestart = document.getElementById('btnRestart');
+  const errorMsg = document.getElementById('errorMsg');
+  const video = document.getElementById('video');
+  const hiddenCanvas = document.getElementById('hiddenCanvas');
+  const hiddenCtx = hiddenCanvas.getContext('2d', { willReadFrequently: true });
+  const waveform = document.getElementById('waveform');
+  const waveformCtx = waveform.getContext('2d');
+  const timerEl = document.getElementById('timer');
+  const bpmLiveEl = document.getElementById('bpmLive');
+  const sampleCountEl = document.getElementById('sampleCount');
+  const qualityLiveEl = document.getElementById('qualityLive');
+  const statusLogEl = document.getElementById('statusLog');
+
+  function log(msg, kind) {
+    const line = document.createElement('div');
+    if (kind) line.className = kind;
+    const time = new Date().toLocaleTimeString('pt-BR', { hour12: false });
+    line.textContent = '[' + time + '] ' + msg;
+    statusLogEl.appendChild(line);
+    statusLogEl.scrollTop = statusLogEl.scrollHeight;
+    console.log('[ppg-proto]', msg);
+  }
+
+  const CAPTURE_SECONDS = 60;
+  let stream = null;
+  let lastCaptureData = null;
+  let rafId = null;
+  let startTime = null;
+  let samples = []; // { t: segundos desde início, v: intensidade média do canal verde na ROI }
+  let peaks = [];    // { t } dos picos detectados
+  let stopTimeoutId = null;
+
+  function resetState() {
+    samples = [];
+    peaks = [];
+    startTime = null;
+    bpmLiveEl.textContent = '--';
+    sampleCountEl.textContent = '0';
+    qualityLiveEl.textContent = 'aguardando';
+    qualityLiveEl.className = 'status-tag';
+    timerEl.textContent = CAPTURE_SECONDS + 's';
+  }
+
+  async function startCapture() {
+    errorMsg.hidden = true;
+    statusLogEl.innerHTML = '';
+    btnStart.disabled = true;
+    btnStart.textContent = 'Solicitando permissão…';
+
+    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+      btnStart.disabled = false;
+      btnStart.textContent = 'Permitir câmera e iniciar (60s)';
+      errorMsg.hidden = false;
+      errorMsg.textContent =
+        'Este navegador não expõe getUserMedia neste contexto. Isso costuma acontecer em ' +
+        'origens não seguras (não é https:// nem localhost) ou em iframes que bloqueiam câmera ' +
+        'por política de permissões. Tente abrir o arquivo em outro navegador (Chrome/Edge) ' +
+        'ou servir localmente (ex.: "python3 -m http.server" na pasta do arquivo e acessar ' +
+        'via http://localhost:PORTA).';
+      log('getUserMedia indisponível neste contexto.', 'err');
+      return;
+    }
+
+    log('Solicitando permissão de câmera…');
+    try {
+      stream = await navigator.mediaDevices.getUserMedia({
+        video: { facingMode: { ideal: 'user' }, width: { ideal: 640 }, height: { ideal: 480 } },
+        audio: false,
+      });
+    } catch (err) {
+      btnStart.disabled = false;
+      btnStart.textContent = 'Permitir câmera e iniciar (60s)';
+      errorMsg.hidden = false;
+      const name = err && err.name ? err.name : 'Erro';
+      const friendly =
+        name === 'NotAllowedError' ? 'Permissão de câmera negada pelo navegador ou pelo usuário.' :
+        name === 'NotFoundError' ? 'Nenhuma câmera encontrada neste dispositivo.' :
+        name === 'NotReadableError' ? 'A câmera está sendo usada por outro aplicativo/aba.' :
+        name === 'OverconstrainedError' ? 'A câmera não atende às restrições pedidas (facingMode/resolução).' :
+        name === 'SecurityError' ? 'Contexto inseguro — abra via https:// ou http://localhost.' :
+        (err && err.message ? err.message : String(err));
+      errorMsg.textContent = 'Não foi possível acessar a câmera: ' + friendly + ' (' + name + ')';
+      log('Falha em getUserMedia: ' + name + ' — ' + (err && err.message), 'err');
+      return;
+    }
+    log('Permissão concedida.', 'ok');
+
+    video.srcObject = stream;
+    try {
+      await video.play();
+    } catch (err) {
+      log('video.play() falhou: ' + (err && err.message), 'err');
+    }
+
+    // Aguarda os metadados do vídeo (dimensões reais) antes de prosseguir —
+    // sem isso o canvas oculto pode ficar 0x0 e a leitura falha silenciosamente.
+    const gotMetadata = await waitForVideoDimensions(3000);
+    if (!gotMetadata) {
+      log('Vídeo não reportou dimensões a tempo (' + video.videoWidth + 'x' + video.videoHeight + '). Prosseguindo mesmo assim.', 'err');
+    } else {
+      log('Vídeo pronto: ' + video.videoWidth + 'x' + video.videoHeight, 'ok');
+    }
+
+    hiddenCanvas.width = video.videoWidth || 640;
+    hiddenCanvas.height = video.videoHeight || 480;
+
+    resetState();
+    stepIntro.hidden = true;
+    stepResult.hidden = true;
+    stepCapture.hidden = false;
+
+    startTime = performance.now();
+    log('Captura iniciada.', 'ok');
+    tick();
+
+    stopTimeoutId = setTimeout(() => finishCapture('tempo-completo'), CAPTURE_SECONDS * 1000);
+  }
+
+  function waitForVideoDimensions(timeoutMs) {
+    return new Promise(resolve => {
+      if (video.videoWidth > 0 && video.videoHeight > 0) { resolve(true); return; }
+      const start = performance.now();
+      const check = () => {
+        if (video.videoWidth > 0 && video.videoHeight > 0) { resolve(true); return; }
+        if (performance.now() - start > timeoutMs) { resolve(false); return; }
+        requestAnimationFrame(check);
+      };
+      check();
+    });
+  }
+
+  const ANALYSIS_WINDOW_S = 20; // janela usada para estimativa ao vivo (mais recente = mais responsivo)
+  const debugLine = document.getElementById('debugLine');
+
+  function tick() {
+    const now = performance.now();
+    const elapsedS = (now - startTime) / 1000;
+    const remaining = Math.max(0, Math.ceil(CAPTURE_SECONDS - elapsedS));
+    timerEl.textContent = remaining + 's';
+
+    // Extrai a ROI central (região oval do guia, aproximada por retângulo) e calcula
+    // a intensidade média do canal verde — canal mais sensível à absorção de
+    // hemoglobina em câmeras RGB comuns, por isso é o padrão em rPPG por vídeo.
+    const w = hiddenCanvas.width;
+    const h = hiddenCanvas.height;
+    hiddenCtx.drawImage(video, 0, 0, w, h);
+
+    const roiW = w * 0.35;
+    const roiH = h * 0.35;
+    const roiX = w * 0.325;
+    const roiY = h * 0.2;
+
+    let frame;
+    try {
+      frame = hiddenCtx.getImageData(roiX, roiY, roiW, roiH).data;
+    } catch (e) {
+      rafId = requestAnimationFrame(tick);
+      return;
+    }
+
+    let sum = 0;
+    let count = 0;
+    for (let i = 0; i < frame.length; i += 4) {
+      sum += frame[i + 1]; // canal verde
+      count++;
+    }
+    const meanGreen = sum / count;
+
+    samples.push({ t: elapsedS, v: meanGreen });
+    sampleCountEl.textContent = String(samples.length);
+
+    updateLiveEstimate();
+    drawWaveform();
+
+    if (elapsedS < CAPTURE_SECONDS) {
+      rafId = requestAnimationFrame(tick);
+    }
+  }
+
+  function updateLiveEstimate() {
+    const lastT = samples[samples.length - 1].t;
+    const windowData = samples.filter(s => s.t >= lastT - ANALYSIS_WINDOW_S);
+    if (windowData.length < 30) return; // poucos dados ainda para filtrar com sentido
+
+    const filtered = detrendSignal(windowData);
+    const { peaks: found, threshold, std } = detectPeaksAdaptive(filtered);
+    peaks = found;
+
+    if (debugLine) {
+      const rawRecent = windowData.map(s => s.v);
+      const rawRange = Math.max(...rawRecent) - Math.min(...rawRecent);
+      debugLine.textContent =
+        'limiar: ' + threshold.toFixed(3) + ' · desvio: ' + std.toFixed(3) +
+        ' · amplitude bruta (janela): ' + rawRange.toFixed(2);
+    }
+
+    if (peaks.length >= 2) {
+      const intervals = [];
+      for (let i = 1; i < peaks.length; i++) {
+        intervals.push(peaks[i].t - peaks[i - 1].t);
+      }
+      const recentIntervals = intervals.slice(-6);
+      const medianInterval = median(recentIntervals);
+      const bpm = medianInterval > 0 ? 60 / medianInterval : 0;
+      if (bpm >= 35 && bpm <= 200) {
+        bpmLiveEl.textContent = Math.round(bpm);
+      }
+    }
+
+    const q = estimateQuality(peaks, windowData.length);
+    qualityLiveEl.textContent = q.label;
+    qualityLiveEl.className = 'status-tag ' + q.tier;
+  }
+
+  function estimateSampleRate(data) {
+    const d = data || samples;
+    if (d.length < 10) return null;
+    const span = d[d.length - 1].t - d[0].t;
+    if (span <= 0) return null;
+    return d.length / span;
+  }
+
+  function centeredMovingAverage(data, windowSize) {
+    // Média móvel CENTRALIZADA (olha para trás e para frente), não apenas causal.
+    // Uma média móvel só-passado tem atraso de fase — contra uma deriva de
+    // iluminação relativamente rápida, esse atraso sozinho já gera um resíduo
+    // maior que o próprio pulso cardíaco, mascarando o sinal inteiro. Como
+    // recalculamos em lote sobre uma janela já capturada (não amostra a amostra
+    // em tempo real puro), podemos usar "amostras futuras" dentro da própria
+    // janela e eliminar quase todo esse atraso.
+    const half = Math.floor(windowSize / 2);
+    const out = new Array(data.length);
+    for (let i = 0; i < data.length; i++) {
+      const start = Math.max(0, i - half);
+      const end = Math.min(data.length - 1, i + half);
+      let sum = 0;
+      let n = 0;
+      for (let j = start; j <= end; j++) { sum += data[j].v; n++; }
+      out[i] = { t: data[i].t, v: sum / n };
+    }
+    return out;
+  }
+
+  // Remove a deriva lenta de iluminação: subtrai uma média móvel centralizada
+  // com janela deliberadamente bem maior (~3s) que o período cardíaco mais
+  // lento esperado (40 bpm = 1.5s), para não atenuar a faixa de interesse.
+  function detrendSignal(data) {
+    const sr = estimateSampleRate(data) || 30;
+    const slowWin = Math.max(10, Math.round(sr * 3));
+    const slow = centeredMovingAverage(data, slowWin);
+    return data.map((d, i) => ({ t: d.t, v: d.v - slow[i].v }));
+  }
+
+  function localStdSeries(filtered, sr, windowS) {
+    // Desvio padrão LOCAL (janela móvel), não da captura inteira de uma vez.
+    // Achado com dados reais: um único trecho de amplitude grande (ex.: a
+    // câmera ajustando exposição no começo da captura) infla o desvio padrão
+    // GLOBAL o bastante para esconder batimentos reais, porém mais sutis, em
+    // trechos calmos da mesma captura — o limiar acaba alto demais para eles.
+    const win = Math.max(10, Math.round(sr * windowS));
+    const half = Math.floor(win / 2);
+    const n = filtered.length;
+    const out = new Array(n);
+    for (let i = 0; i < n; i++) {
+      const start = Math.max(0, i - half);
+      const end = Math.min(n - 1, i + half);
+      const window = filtered.slice(start, end + 1).map(d => d.v);
+      const mean = window.reduce((a, b) => a + b, 0) / window.length;
+      const variance = window.reduce((a, b) => a + (b - mean) * (b - mean), 0) / window.length;
+      out[i] = Math.sqrt(variance);
+    }
+    return out;
+  }
+
+  function detectPeaksAdaptive(filtered) {
+    const sr = estimateSampleRate(filtered.map(d => ({ t: d.t }))) || 30;
+    const values = filtered.map(d => d.v);
+    const mean = values.reduce((a, b) => a + b, 0) / values.length;
+    const variance = values.reduce((a, b) => a + (b - mean) * (b - mean), 0) / values.length;
+    const globalStd = Math.sqrt(variance);
+    const localStd = localStdSeries(filtered, sr, 6); // janela de ~6s
+
+    // Limiar HÍBRIDO: predominantemente local (se adapta a trechos de
+    // amplitude menor), mas com um piso proporcional ao desvio global (evita
+    // colapsar a quase-zero em trechos muito planos e confundir ruído com
+    // pico real). Testado e ajustado com capturas reais, não só sintéticas.
+    const found = [];
+    let expectedPeriod = null;
+    const candidates = [];
+    for (let i = 2; i < filtered.length - 2; i++) {
+      const p = filtered[i];
+      const isLocalMax =
+        p.v > filtered[i - 1].v &&
+        p.v > filtered[i - 2].v &&
+        p.v >= filtered[i + 1].v &&
+        p.v >= filtered[i + 2].v;
+      if (!isLocalMax) continue;
+      // Multiplicador calibrado contra referência real (pulso manual: 78 bpm
+      // medido por palpação vs. 91-104 bpm que o app relatava com 0.5 — o
+      // valor mais baixo deixava passar ruído de trechos com movimento/piscar
+      // como se fosse batimento). 0.85 foi o que melhor bateu com a
+      // referência real em testes repetidos, sem perder precisão na bateria
+      // sintética de 40-130 bpm.
+      const threshold = Math.max(localStd[i] * 0.85, globalStd * 0.22, 0.03);
+      if (p.v <= threshold) continue;
+      candidates.push(p);
+    }
+
+    // Refratário ADAPTATIVO: a distância mínima até o próximo pico aceito se
+    // ajusta ao ritmo cardíaco já observado (55% do período recente), em vez
+    // de um valor fixo. Isso separa de forma confiável o entalhe dicrótico
+    // (segunda saliência natural de um pulso PPG real, dentro do MESMO ciclo)
+    // do batimento seguinte de fato — tanto em ritmos lentos quanto rápidos.
+    for (const c of candidates) {
+      const minGap = expectedPeriod
+        ? Math.min(Math.max(expectedPeriod * 0.55, 0.28), 1.3)
+        : 0.35; // chute inicial conservador até termos 1 intervalo medido
+      if (found.length && c.t - found[found.length - 1].t < minGap) continue;
+      found.push(c);
+      if (found.length >= 2) {
+        const lastInterval = found[found.length - 1].t - found[found.length - 2].t;
+        expectedPeriod = expectedPeriod ? (expectedPeriod * 0.7 + lastInterval * 0.3) : lastInterval;
+      }
+    }
+    const avgThreshold = localStd.reduce((a, b) => a + Math.max(b * 0.85, globalStd * 0.22, 0.03), 0) / localStd.length;
+    return { peaks: found, threshold: avgThreshold, std: globalStd };
+  }
+
+  function median(arr) {
+    if (!arr.length) return 0;
+    const sorted = [...arr].sort((a, b) => a - b);
+    const mid = Math.floor(sorted.length / 2);
+    return sorted.length % 2 ? sorted[mid] : (sorted[mid - 1] + sorted[mid]) / 2;
+  }
+
+  function estimateQuality(peaksArr, sampleCountInWindow) {
+    // Heurística simplificada de demonstração (não é o motor de confiança real
+    // de ppgPolicy.ts, que exige histórico, postura validada e múltiplas barreiras).
+    if (sampleCountInWindow < 90 || peaksArr.length < 4) {
+      return { label: 'coletando…', tier: '' };
+    }
+    const intervals = [];
+    for (let i = 1; i < peaksArr.length; i++) intervals.push(peaksArr[i].t - peaksArr[i - 1].t);
+    const recentIntervals = intervals.slice(-8);
+    const m = median(recentIntervals);
+    const variancePct = recentIntervals.length
+      ? recentIntervals.reduce((acc, v) => acc + Math.abs(v - m) / m, 0) / recentIntervals.length
+      : 1;
+
+    if (variancePct < 0.12 && recentIntervals.length >= 5) {
+      return { label: 'boa', tier: 'good' };
+    }
+    if (variancePct < 0.25) {
+      return { label: 'razoável', tier: 'watch' };
+    }
+    return { label: 'baixa', tier: 'alert' };
+  }
+
+  function drawWaveform() {
+    const ctx = waveformCtx;
+    const W = waveform.width;
+    const H = waveform.height;
+    ctx.clearRect(0, 0, W, H);
+
+    const lastT = samples[samples.length - 1].t;
+    const recent = samples.filter(s => s.t >= lastT - 8); // últimos ~8s
+    if (recent.length < 20) return;
+
+    const filtered = detrendSignal(recent);
+    const values = filtered.map(d => d.v);
+    const min = Math.min(...values);
+    const max = Math.max(...values);
+    const range = max - min || 1;
+
+    ctx.beginPath();
+    ctx.strokeStyle = '#ffce00';
+    ctx.lineWidth = 2;
+    filtered.forEach((d, i) => {
+      const x = (i / (filtered.length - 1)) * W;
+      const y = H - ((d.v - min) / range) * (H - 12) - 6;
+      if (i === 0) ctx.moveTo(x, y);
+      else ctx.lineTo(x, y);
+    });
+    ctx.stroke();
+  }
+
+  function finishCapture(reason) {
+    if (stopTimeoutId) clearTimeout(stopTimeoutId);
+    if (rafId) cancelAnimationFrame(rafId);
+    if (stream) {
+      stream.getTracks().forEach(t => t.stop());
+      stream = null;
+    }
+
+    const durationS = startTime ? (performance.now() - startTime) / 1000 : 0;
+
+    let bpmFinal = '--';
+    let confidenceLabel = 'insuficiente';
+    let tier = 'alert';
+    let finalPeaks = [];
+    let thresholdFinal = null;
+    let stdFinal = null;
+
+    if (samples.length >= 60) {
+      const filteredFull = detrendSignal(samples);
+      const detectResult = detectPeaksAdaptive(filteredFull);
+      finalPeaks = detectResult.peaks;
+      thresholdFinal = detectResult.threshold;
+      stdFinal = detectResult.std;
+    }
+
+    if (finalPeaks.length >= 2) {
+      const intervals = [];
+      for (let i = 1; i < finalPeaks.length; i++) intervals.push(finalPeaks[i].t - finalPeaks[i - 1].t);
+      const m = median(intervals);
+      if (m > 0) bpmFinal = Math.round(60 / m);
+      const q = estimateQuality(finalPeaks, samples.length);
+      confidenceLabel = q.label === 'coletando…' ? 'insuficiente' : q.label;
+      tier = q.tier || 'alert';
+    }
+    peaks = finalPeaks;
+
+    // Achado com dados reais (sessão de 8 pontos): amplitude bruta fraca
+    // correlacionou com erro maior. MAS um 9º ponto real revelou que essa
+    // correlação é incompleta: um único evento não-cardíaco (movimento/luz
+    // abrupta) concentrado numa janela curta pode inflar a amplitude bruta
+    // da captura INTEIRA para um valor "alto", mesmo que o resto da captura
+    // seja calmo e o resultado final não seja confiável. Ou seja, amplitude
+    // alta pode vir de sinal cardíaco forte (bom) OU de artefato (ruim) — o
+    // número sozinho não distingue as duas coisas. Por isso não rotulamos
+    // mais como "boa/adequada/fraca" aqui — só expomos o número bruto como
+    // diagnóstico, sem afirmar qualidade. Ver docs/backlog.md (Key learnings
+    // #7) no repositório do app para o histórico completo.
+    const rawValues = samples.map(s => s.v);
+    const rawRange = rawValues.length ? Math.max(...rawValues) - Math.min(...rawValues) : 0;
+
+    lastCaptureData = {
+      exportadoEm: new Date().toISOString(),
+      motivoEncerramento: reason,
+      duracaoSegundos: Math.round(durationS * 100) / 100,
+      totalAmostras: samples.length,
+      taxaAmostragemEstimadaHz: estimateSampleRate(samples),
+      bpmFinal: bpmFinal,
+      totalPicosDetectados: finalPeaks.length,
+      confiancaLabel: confidenceLabel,
+      confiancaTier: tier,
+      limiarAdaptativoFinal: thresholdFinal,
+      desvioPadraoSinalFinal: stdFinal,
+      amplitudeSinalBruto: Math.round(rawRange * 100) / 100,
+      amostrasBrutas: samples,
+      picosDetectados: finalPeaks,
+    };
+
+    document.getElementById('bpmFinal').textContent = bpmFinal;
+    document.getElementById('peaksFinal').textContent = String(finalPeaks.length);
+    document.getElementById('durationFinal').textContent = Math.round(durationS) + 's';
+    document.getElementById('confidenceFinal').textContent = confidenceLabel;
+    document.getElementById('amplitudeFinal').textContent = rawRange.toFixed(2) + ' (diagnóstico bruto — não indica qualidade sozinho)';
+
+    const badge = document.getElementById('resultBadge');
+    badge.className = 'result-badge ' + tier;
+    badge.textContent =
+      tier === 'good' ? 'Sinal com boa qualidade' :
+      tier === 'watch' ? 'Sinal com qualidade razoável' :
+      'Sinal insuficiente para leitura confiável';
+
+    document.getElementById('resultCopy').textContent =
+      reason === 'manual'
+        ? 'Captura encerrada manualmente antes dos 60s — quanto mais curta a janela, menos confiável a estimativa.'
+        : 'Captura completa de ' + CAPTURE_SECONDS + 's concluída. Lembre-se: isto valida a captação, não substitui a calibração científica do motor real.';
+
+    stepCapture.hidden = true;
+    stepResult.hidden = false;
+  }
+
+  const btnExport = document.getElementById('btnExport');
+
+  btnStart.addEventListener('click', startCapture);
+  btnStop.addEventListener('click', () => finishCapture('manual'));
+  btnExport.addEventListener('click', () => {
+    if (!lastCaptureData) return;
+    const blob = new Blob([JSON.stringify(lastCaptureData, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'ppg-captura-' + Date.now() + '.json';
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  });
+  btnRestart.addEventListener('click', () => {
+    stepResult.hidden = true;
+    stepIntro.hidden = false;
+    btnStart.disabled = false;
+    btnStart.textContent = 'Permitir câmera e iniciar (60s)';
+  });
+})();
+</script>
+</body>
+</html>

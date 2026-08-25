@@ -151,12 +151,12 @@
       <li>Me conta o resultado dos dois testes (aba normal vs. tela de início).</li>
     </ol>
     <p style="color:#86efac; font-size:0.78rem; margin-top:0.9rem; padding:0.6rem; border:1px solid rgba(52,211,153,0.3); border-radius:8px; background:rgba(52,211,153,0.08);">
-      <strong>Atualização:</strong> o primeiro teste em modo standalone (tela de início) mostrou
-      tela preta durante toda a captura (0 de variação no sinal por 60s) — provável falha de
-      entrega de quadros de vídeo real nesse modo. A página agora detecta isso automaticamente
-      nos primeiros ~1-2s e avisa, em vez de rodar os 60s inteiros. Ainda falta confirmar o
-      teste de controle (aba normal) no mesmo aparelho para saber se é específico do modo
-      standalone ou mais geral.
+      <strong>Atualização:</strong> testado nos dois cenários (aba normal e tela de início) —
+      mesmo erro nos dois: <code>video.play()</code> travou ~61s antes de falhar com
+      "The operation was aborted". Ou seja, <strong>não é específico do modo standalone</strong>.
+      Corrigido: agora há um limite de 8s para o vídeo começar a tocar, e uma falha real é
+      tratada como erro (não tenta mais capturar de um vídeo que nunca começou). Teste de novo
+      com essa versão.
     </p>
     <p style="color:#7d8db0; font-size:0.72rem; margin-top:0.8rem;">
       Essa página não salva nem envia nada — só testa a permissão de câmera em si.
@@ -312,6 +312,14 @@
       return;
     }
 
+    // Limpeza defensiva: se sobrou stream de uma tentativa anterior (ex.: o
+    // usuário tocou em tentar de novo enquanto algo ainda estava pendente),
+    // encerra antes de pedir um novo — evita travar o hardware da câmera.
+    if (stream) {
+      stream.getTracks().forEach(t => t.stop());
+      stream = null;
+    }
+
     log('Solicitando permissão de câmera…');
     try {
       stream = await navigator.mediaDevices.getUserMedia({
@@ -337,20 +345,54 @@
     log('Permissão concedida.', 'ok');
 
     video.srcObject = stream;
+    log('Chamando video.play()…');
     try {
-      await video.play();
+      // Timeout defensivo: em um teste real, play() ficou pendente por ~61s
+      // antes de rejeitar. Sem um limite, a interface fica parada esse tempo
+      // todo sem explicação. Se não resolver em 8s, tratamos como falha.
+      await Promise.race([
+        video.play(),
+        new Promise((_, reject) => setTimeout(() => reject(new Error('Tempo esgotado (8s) esperando video.play()')), 8000)),
+      ]);
+      log('video.play() resolveu com sucesso.', 'ok');
     } catch (err) {
+      // Falha real: antes, esse erro só era logado e o código seguia em
+      // frente tentando capturar mesmo assim — resultado: tela preta pelos
+      // 60s inteiros. Agora isso interrompe o fluxo e libera a câmera.
       log('video.play() falhou: ' + (err && err.message), 'err');
+      if (stream) {
+        stream.getTracks().forEach(t => t.stop());
+        stream = null;
+      }
+      btnStart.disabled = false;
+      btnStart.textContent = 'Permitir câmera e iniciar (60s)';
+      errorMsg.hidden = false;
+      errorMsg.textContent =
+        'A câmera concedeu permissão, mas o vídeo não começou a tocar (' +
+        (err && err.message ? err.message : 'motivo desconhecido') + '). Isso pode ser um ' +
+        'travamento momentâneo do navegador. Toque em "Permitir câmera e iniciar" novamente — ' +
+        'se persistir, feche o app/aba completamente e reabra antes de tentar de novo.';
+      return;
     }
 
     // Aguarda os metadados do vídeo (dimensões reais) antes de prosseguir —
     // sem isso o canvas oculto pode ficar 0x0 e a leitura falha silenciosamente.
     const gotMetadata = await waitForVideoDimensions(3000);
     if (!gotMetadata) {
-      log('Vídeo não reportou dimensões a tempo (' + video.videoWidth + 'x' + video.videoHeight + '). Prosseguindo mesmo assim.', 'err');
-    } else {
-      log('Vídeo pronto: ' + video.videoWidth + 'x' + video.videoHeight, 'ok');
+      log('Vídeo não reportou dimensões a tempo (' + video.videoWidth + 'x' + video.videoHeight + ').', 'err');
+      if (stream) {
+        stream.getTracks().forEach(t => t.stop());
+        stream = null;
+      }
+      btnStart.disabled = false;
+      btnStart.textContent = 'Permitir câmera e iniciar (60s)';
+      errorMsg.hidden = false;
+      errorMsg.textContent =
+        'O vídeo começou a tocar, mas nunca reportou dimensões reais — sinal de que os quadros ' +
+        'não estão chegando de verdade. Tente novamente.';
+      return;
     }
+    log('Vídeo pronto: ' + video.videoWidth + 'x' + video.videoHeight, 'ok');
 
     hiddenCanvas.width = video.videoWidth || 640;
     hiddenCanvas.height = video.videoHeight || 480;

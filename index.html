@@ -150,6 +150,14 @@
         de permissão? A imagem da câmera apareceu? Deu erro?</li>
       <li>Me conta o resultado dos dois testes (aba normal vs. tela de início).</li>
     </ol>
+    <p style="color:#86efac; font-size:0.78rem; margin-top:0.9rem; padding:0.6rem; border:1px solid rgba(52,211,153,0.3); border-radius:8px; background:rgba(52,211,153,0.08);">
+      <strong>Atualização:</strong> o primeiro teste em modo standalone (tela de início) mostrou
+      tela preta durante toda a captura (0 de variação no sinal por 60s) — provável falha de
+      entrega de quadros de vídeo real nesse modo. A página agora detecta isso automaticamente
+      nos primeiros ~1-2s e avisa, em vez de rodar os 60s inteiros. Ainda falta confirmar o
+      teste de controle (aba normal) no mesmo aparelho para saber se é específico do modo
+      standalone ou mais geral.
+    </p>
     <p style="color:#7d8db0; font-size:0.72rem; margin-top:0.8rem;">
       Essa página não salva nem envia nada — só testa a permissão de câmera em si.
       Sem relação com as capturas biométricas reais, que continuam no repositório privado.
@@ -276,6 +284,7 @@
     samples = [];
     peaks = [];
     startTime = null;
+    cameraCheckFeita = false;
     bpmLiveEl.textContent = '--';
     sampleCountEl.textContent = '0';
     qualityLiveEl.textContent = 'aguardando';
@@ -374,6 +383,9 @@
   const ANALYSIS_WINDOW_S = 20; // janela usada para estimativa ao vivo (mais recente = mais responsivo)
   const debugLine = document.getElementById('debugLine');
 
+  const MIN_SAMPLES_ANTES_DE_CHECAR_CAMERA = 40; // ~1-1.5s dependendo do fps real
+  let cameraCheckFeita = false;
+
   function tick() {
     const now = performance.now();
     const elapsedS = (now - startTime) / 1000;
@@ -411,12 +423,53 @@
     samples.push({ t: elapsedS, v: meanGreen });
     sampleCountEl.textContent = String(samples.length);
 
+    // Checagem precoce: se a câmera não estiver entregando imagem real (tela
+    // preta, quadro travado), os valores ficam idênticos ou colados em zero.
+    // Sem essa checagem, o app rodava os 60s inteiros e salvava um resultado
+    // que parecia só "sinal ruim" quando na verdade a câmera nunca funcionou —
+    // achado real em teste de campo (iOS, modo standalone).
+    if (!cameraCheckFeita && samples.length >= MIN_SAMPLES_ANTES_DE_CHECAR_CAMERA) {
+      cameraCheckFeita = true;
+      const valoresIniciais = samples.map(s => s.v);
+      const min = Math.min(...valoresIniciais);
+      const max = Math.max(...valoresIniciais);
+      const variacao = max - min;
+      if (variacao < 0.01) {
+        const ehPreta = max < 1;
+        abortarPorCameraSemImagem(ehPreta);
+        return;
+      }
+      log('Checagem inicial de câmera OK — imagem real detectada.', 'ok');
+    }
+
     updateLiveEstimate();
     drawWaveform();
 
     if (elapsedS < CAPTURE_SECONDS) {
       rafId = requestAnimationFrame(tick);
     }
+  }
+
+  function abortarPorCameraSemImagem(ehPreta) {
+    if (rafId) cancelAnimationFrame(rafId);
+    if (stream) {
+      stream.getTracks().forEach(t => t.stop());
+      stream = null;
+    }
+    log('Câmera sem imagem real detectada — captura abortada cedo.', 'err');
+    stepCapture.hidden = true;
+    stepIntro.hidden = false;
+    btnStart.disabled = false;
+    btnStart.textContent = 'Permitir câmera e iniciar (60s)';
+    errorMsg.hidden = false;
+    errorMsg.textContent = ehPreta
+      ? 'A câmera parece ter autorizado o acesso, mas a imagem ficou completamente preta ' +
+        '(nenhuma variação detectada nos primeiros segundos). Isso costuma acontecer quando ' +
+        'o navegador concede a permissão mas não entrega quadros de vídeo de verdade — mais ' +
+        'comum em apps instalados na tela de início (modo standalone) em iOS. Tente fechar e ' +
+        'reabrir o app, ou testar primeiro numa aba normal do Safari antes de instalar.'
+      : 'A imagem da câmera não está mudando (quadro travado). Tente novamente — se persistir, ' +
+        'teste numa aba normal do navegador antes de usar o app instalado na tela de início.';
   }
 
   function updateLiveEstimate() {

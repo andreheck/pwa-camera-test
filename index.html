@@ -151,11 +151,10 @@
       <li>Me conta o resultado dos dois testes (aba normal vs. tela de início).</li>
     </ol>
     <p style="color:#86efac; font-size:0.78rem; margin-top:0.9rem; padding:0.6rem; border:1px solid rgba(52,211,153,0.3); border-radius:8px; background:rgba(52,211,153,0.08);">
-      <strong>Atualização:</strong> confirmado que <code>video.play()</code> trava
-      sistematicamente (sempre bate no limite de tempo, nos dois cenários) nesse aparelho.
-      Reestruturado para não depender mais dessa promise — agora o app checa diretamente se
-      o vídeo está entregando dimensões reais (sinal mais confiável), sem bloquear nisso.
-      Teste de novo com essa versão.
+      <strong>Atualização:</strong> o vídeo passou a reportar dimensões reais (480x640), mas os
+      quadros continuavam pretos — o elemento fica "pausado" no primeiro quadro sem decodificar
+      de verdade. Adicionada tentativa automática de recuperação: se detectar tela preta, chama
+      <code>play()</code> de novo (até 2x) antes de desistir. Teste de novo.
     </p>
     <p style="color:#7d8db0; font-size:0.72rem; margin-top:0.8rem;">
       Essa página não salva nem envia nada — só testa a permissão de câmera em si.
@@ -284,6 +283,7 @@
     peaks = [];
     startTime = null;
     cameraCheckFeita = false;
+    cameraRetryCount = 0;
     bpmLiveEl.textContent = '--';
     sampleCountEl.textContent = '0';
     qualityLiveEl.textContent = 'aguardando';
@@ -421,6 +421,7 @@
 
   const MIN_SAMPLES_ANTES_DE_CHECAR_CAMERA = 40; // ~1-1.5s dependendo do fps real
   let cameraCheckFeita = false;
+  let cameraRetryCount = 0;
 
   function tick() {
     const now = performance.now();
@@ -471,6 +472,26 @@
       const max = Math.max(...valoresIniciais);
       const variacao = max - min;
       if (variacao < 0.01) {
+        // Antes de desistir, tenta recuperar a reprodução: em alguns
+        // navegadores (WebKit/iOS especialmente), videoWidth/videoHeight já
+        // vêm preenchidos a partir das configurações do stream mesmo que o
+        // elemento de vídeo nunca tenha de fato começado a decodificar
+        // quadros (fica "pausado" no primeiro quadro, preto). Chamar play()
+        // de novo explicitamente, mais de uma vez, é um contorno conhecido
+        // para esse tipo de situação específica do WebKit.
+        if (cameraRetryCount < 2) {
+          cameraRetryCount++;
+          log('Sem imagem real ainda — tentando recuperar reprodução (tentativa ' + cameraRetryCount + '/2)…', 'err');
+          video.muted = true;
+          video.play().then(
+            () => log('Nova chamada a video.play() resolveu.', 'ok'),
+            err => log('Nova chamada a video.play() rejeitou: ' + (err && err.message), 'err')
+          );
+          samples = [];
+          cameraCheckFeita = false;
+          rafId = requestAnimationFrame(tick);
+          return;
+        }
         const ehPreta = max < 1;
         abortarPorCameraSemImagem(ehPreta);
         return;
@@ -492,20 +513,21 @@
       stream.getTracks().forEach(t => t.stop());
       stream = null;
     }
-    log('Câmera sem imagem real detectada — captura abortada cedo.', 'err');
+    log('Câmera sem imagem real detectada, mesmo após tentativas de recuperação — captura abortada.', 'err');
     stepCapture.hidden = true;
     stepIntro.hidden = false;
     btnStart.disabled = false;
     btnStart.textContent = 'Permitir câmera e iniciar (60s)';
     errorMsg.hidden = false;
     errorMsg.textContent = ehPreta
-      ? 'A câmera parece ter autorizado o acesso, mas a imagem ficou completamente preta ' +
-        '(nenhuma variação detectada nos primeiros segundos). Isso costuma acontecer quando ' +
-        'o navegador concede a permissão mas não entrega quadros de vídeo de verdade — mais ' +
-        'comum em apps instalados na tela de início (modo standalone) em iOS. Tente fechar e ' +
-        'reabrir o app, ou testar primeiro numa aba normal do Safari antes de instalar.'
-      : 'A imagem da câmera não está mudando (quadro travado). Tente novamente — se persistir, ' +
-        'teste numa aba normal do navegador antes de usar o app instalado na tela de início.';
+      ? 'A câmera autorizou o acesso e reporta dimensões de vídeo válidas, mas a imagem ' +
+        'continua completamente preta mesmo após duas tentativas automáticas de reiniciar a ' +
+        'reprodução. O vídeo provavelmente fica "pausado" no primeiro quadro sem decodificar ' +
+        'quadros novos — sinal de um problema mais específico desse navegador/aparelho com ' +
+        'reprodução de stream de câmera. Tente fechar completamente o app/aba e abrir de novo, ' +
+        'ou testar em outro navegador.'
+      : 'A imagem da câmera não está mudando (quadro travado), mesmo após tentativas de ' +
+        'recuperação. Tente fechar completamente o app/aba e abrir de novo.';
   }
 
   function updateLiveEstimate() {

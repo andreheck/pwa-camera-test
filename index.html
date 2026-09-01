@@ -151,10 +151,12 @@
       <li>Me conta o resultado dos dois testes (aba normal vs. tela de início).</li>
     </ol>
     <p style="color:#86efac; font-size:0.78rem; margin-top:0.9rem; padding:0.6rem; border:1px solid rgba(52,211,153,0.3); border-radius:8px; background:rgba(52,211,153,0.08);">
-      <strong>Atualização:</strong> o vídeo passou a reportar dimensões reais (480x640), mas os
-      quadros continuavam pretos — o elemento fica "pausado" no primeiro quadro sem decodificar
-      de verdade. Adicionada tentativa automática de recuperação: se detectar tela preta, chama
-      <code>play()</code> de novo (até 2x) antes de desistir. Teste de novo.
+      <strong>Atualização:</strong> a demo oficial do WebRTC (webrtc.github.io) funcionou normal
+      no mesmo aparelho — confirma que não é limitação de hardware/iOS, é algo específico desta
+      página. Suspeita principal: pedíamos <code>facingMode</code> + <code>width</code>/<code>height</code>
+      "ideais" juntos, o que pode levar a câmera a negociar uma configuração que trava nesse
+      aparelho. Simplificado para pedir só <code>facingMode</code>, igual à demo que funcionou.
+      Teste de novo.
     </p>
     <p style="color:#7d8db0; font-size:0.72rem; margin-top:0.8rem;">
       Essa página não salva nem envia nada — só testa a permissão de câmera em si.
@@ -321,8 +323,15 @@
 
     log('Solicitando permissão de câmera…');
     try {
+      // Restrições SIMPLIFICADAS — antes pedíamos facingMode + width/height
+      // "ideais" juntos, o que pode levar o navegador a negociar uma
+      // configuração de câmera específica que trava em alguns aparelhos
+      // (a demo oficial do WebRTC, que funcionou normal no teste real,
+      // usa restrições bem mais simples). O código já lê videoWidth/
+      // videoHeight dinamicamente depois, então não depende de uma
+      // resolução fixa aqui.
       stream = await navigator.mediaDevices.getUserMedia({
-        video: { facingMode: { ideal: 'user' }, width: { ideal: 640 }, height: { ideal: 480 } },
+        video: { facingMode: { ideal: 'user' } },
         audio: false,
       });
     } catch (err) {
